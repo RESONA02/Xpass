@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- ไม่สำรองข้อมูลใด ๆ: vault ถูกเข้ารหัสด้วยกุญแจใน Keystore ของเครื่องนี้เท่านั้น -->
+    <exclude domain="file" path="." />
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="database" path="." />
+</full-backup-content>

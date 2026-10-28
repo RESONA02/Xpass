@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">xpass</string>
+    <string name="app_tagline">รหัสผ่าน · 2FA · ชื่อลับ</string>
+
+    <string name="tab_password">รหัสผ่าน</string>
+    <string name="tab_totp">2FA</string>
+    <string name="tab_names">ชื่อหน้า</string>
+    <string name="tab_ai">AI</string>
+    <string name="tab_settings">ตั้งค่า</string>
+
+    <string name="action_copy">คัดลอก</string>
+    <string name="action_copied">คัดลอกแล้ว</string>
+    <string name="action_generate">สร้างใหม่</string>
+    <string name="action_save">บันทึก</string>
+    <string name="action_cancel">ยกเลิก</string>
+    <string name="action_delete">ลบ</string>
+    <string name="action_add">เพิ่ม</string>
+    <string name="action_close">ปิด</string>
+</resources>

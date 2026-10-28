@@ -1,0 +1,387 @@
+#!/usr/bin/env python3
+"""xpass_gui: หน้าต่าง GUI ของ xpass (tkinter, ใช้ stdlib ล้วน)
+
+รัน:  python xpass_gui.py
+หรือ: pythonw xpass_gui.py   (เปิดแบบไม่มีหน้าต่างดำ)
+
+ทำงานออฟไลน์ ไม่เขียนไฟล์ ไม่ส่งข้อมูลออกไปไหน
+ต้องวางไฟล์นี้ไว้โฟลเดอร์เดียวกับ xpass.py
+"""
+import math
+import os
+import secrets
+import sys
+import time
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+if BASE not in sys.path:
+    sys.path.insert(0, BASE)
+
+try:
+    import xpass as core
+except Exception as exc:  # pragma: no cover
+    raise SystemExit("ต้องวาง xpass_gui.py ไว้ในโฟลเดอร์เดียวกับ xpass.py (%s)" % exc)
+
+# ให้ตัวอักษรคมบนจอความละเอียดสูง (Windows)
+try:
+    from ctypes import windll
+    windll.shcore.SetProcessDpiAwareness(1)
+except Exception:
+    pass
+
+MONO = ("Consolas", 11)
+MONO_BIG = ("Consolas", 46, "bold")
+FG_MUTED = "#5f6368"
+FG_OK = "#1b7f3b"
+
+
+class App(tk.Tk):
+    def __init__(self):
+        super().__init__()
+        self.title("xpass — รหัสผ่าน / 2FA ออฟไลน์")
+        self.geometry("820x640")
+        self.minsize(720, 580)
+
+        style = ttk.Style(self)
+        for name in ("vista", "clam", "default"):
+            if name in style.theme_names():
+                style.theme_use(name)
+                break
+        style.configure("Title.TLabel", font=("Segoe UI Semibold", 19))
+        style.configure("Sub.TLabel", foreground=FG_MUTED)
+        style.configure("Ok.TLabel", foreground=FG_OK)
+        style.configure("Big.TLabel", font=MONO_BIG)
+        style.configure("Mono.TEntry", font=MONO)
+
+        self._totp_job = None
+        self._totp_key = None
+        self._totp_code = ""
+
+        self._build()
+
+    # ------------------------------------------------------------------ โครง
+    def _build(self):
+        self.statusbar = ttk.Label(self, text="พร้อมใช้งาน", padding=(14, 6), foreground=FG_MUTED)
+        self.statusbar.pack(side="bottom", fill="x")
+
+        head = ttk.Frame(self, padding=(18, 14, 18, 0))
+        head.pack(fill="x")
+        ttk.Label(head, text="xpass", style="Title.TLabel").pack(side="left")
+        ttk.Label(head, text="รหัสผ่าน · 2FA · ชื่อลับ", style="Sub.TLabel").pack(
+            side="left", padx=(10, 0), pady=(9, 0))
+        ttk.Label(head, text="● ออฟไลน์ ไม่บันทึกข้อมูล", style="Ok.TLabel").pack(side="right", pady=(9, 0))
+
+        nb = ttk.Notebook(self)
+        nb.pack(fill="both", expand=True, padx=14, pady=12)
+        self.nb = nb
+        for name, builder in (
+            ("รหัสผ่าน", self.tab_password),
+            ("ชื่อหน้าลับ", self.tab_name),
+            ("ชุดค่า admin", self.tab_admin),
+            ("TOTP สด", self.tab_totp),
+        ):
+            frame = ttk.Frame(nb)
+            nb.add(frame, text="   %s   " % name)
+            builder(frame)
+
+    def status(self, text):
+        self.statusbar.config(text=text)
+
+    def copy(self, text, btn=None):
+        if not text:
+            self.status("ไม่มีข้อมูลให้คัดลอก")
+            return
+        self.clipboard_clear()
+        self.clipboard_append(text)
+        self.update()  # บังคับให้ Tk เขียนลงคลิปบอร์ดของ Windows ทันที
+        self.status("คัดลอกแล้ว ✓")
+        if btn is not None:
+            old = btn.cget("text")
+            btn.config(text="คัดลอกแล้ว ✓")
+            self.after(1200, lambda: btn.config(text=old))
+
+    # ------------------------------------------------------ แท็บ 1: รหัสผ่าน
+    def tab_password(self, f):
+        box = ttk.Frame(f, padding=(18, 16, 18, 10))
+        box.pack(fill="x")
+
+        ttk.Label(box, text="ความยาว").grid(row=0, column=0, sticky="w")
+        self.pw_len = tk.IntVar(value=20)
+        scale = ttk.Scale(box, from_=8, to=64, orient="horizontal", variable=self.pw_len,
+                          command=lambda v: (self.pw_len.set(int(float(v))),
+                                             self.pw_len_lbl.config(text=int(float(v)))))
+        scale.grid(row=0, column=1, sticky="we", padx=10, pady=4)
+        self.pw_len_lbl = ttk.Label(box, text="20", width=4)
+        self.pw_len_lbl.grid(row=0, column=2)
+
+        self.pw_sym = tk.BooleanVar(value=True)
+        self.pw_amb = tk.BooleanVar(value=False)
+        ttk.Checkbutton(box, text="ใส่สัญลักษณ์ !@#$…", variable=self.pw_sym).grid(
+            row=1, column=0, columnspan=2, sticky="w", pady=2)
+        ttk.Checkbutton(box, text="ตัดตัวที่อ่านสับสน Il1O0o", variable=self.pw_amb).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=2)
+
+        ttk.Label(box, text="จำนวน").grid(row=3, column=0, sticky="w", pady=(8, 0))
+        self.pw_count = tk.IntVar(value=1)
+        ttk.Spinbox(box, from_=1, to=20, width=5, textvariable=self.pw_count).grid(
+            row=3, column=1, sticky="w", padx=10, pady=(8, 0))
+
+        box.columnconfigure(1, weight=1)
+
+        out = ttk.Frame(f, padding=(18, 0, 18, 14))
+        out.pack(fill="both", expand=True)
+        self.pw_out = tk.Text(out, height=8, font=MONO, wrap="none",
+                              relief="solid", borderwidth=1, padx=10, pady=8)
+        self.pw_out.pack(fill="both", expand=True)
+
+        row = ttk.Frame(out)
+        row.pack(fill="x", pady=(10, 0))
+        ttk.Button(row, text="สร้างรหัสผ่าน", command=self.do_pw).pack(side="left")
+        ttk.Button(row, text="คัดลอกทั้งหมด",
+                   command=lambda: self.copy(self.pw_out.get("1.0", "end").strip())).pack(side="left", padx=6)
+        ttk.Button(row, text="ล้าง", command=lambda: self.pw_out.delete("1.0", "end")).pack(side="left")
+        self.pw_bits = ttk.Label(row, text="", style="Sub.TLabel")
+        self.pw_bits.pack(side="right")
+
+    def do_pw(self):
+        try:
+            length = int(self.pw_len.get())
+            count = max(1, min(int(self.pw_count.get()), 20))
+        except Exception:
+            return self.status("ค่าที่ใส่ไม่ถูกต้อง")
+        if not 8 <= length <= 128:
+            return messagebox.showerror("ผิดพลาด", "ความยาวต้องอยู่ระหว่าง 8–128")
+        symbols, no_ambig = self.pw_sym.get(), self.pw_amb.get()
+        lines, bits = [], 0.0
+        for _ in range(count):
+            p, bits = core.gen_password(length, symbols, no_ambig)
+            lines.append(p)
+        self.pw_out.delete("1.0", "end")
+        self.pw_out.insert("1.0", "\n".join(lines))
+        self.pw_bits.config(text="ประมาณ %d บิต entropy" % bits)
+        self.status("สร้างรหัสผ่าน %d ชุด" % count)
+
+    # ---------------------------------------------------- แท็บ 2: ชื่อหน้าลับ
+    def tab_name(self, f):
+        box = ttk.Frame(f, padding=(18, 16, 18, 10))
+        box.pack(fill="x")
+
+        ttk.Label(box, text="ความยาว (8–64)").grid(row=0, column=0, sticky="w")
+        self.nm_len = tk.IntVar(value=24)
+        ttk.Spinbox(box, from_=8, to=64, width=6, textvariable=self.nm_len).grid(
+            row=0, column=1, sticky="w", padx=10, pady=4)
+
+        ttk.Label(box, text="คำนำหน้า").grid(row=1, column=0, sticky="w")
+        self.nm_prefix = tk.StringVar(value="a-")
+        ttk.Entry(box, textvariable=self.nm_prefix, width=12).grid(
+            row=1, column=1, sticky="w", padx=10, pady=4)
+
+        ttk.Button(box, text="สร้างชื่อ", command=self.do_name).grid(
+            row=2, column=0, sticky="w", pady=(10, 0))
+
+        out = ttk.Frame(f, padding=(18, 12, 18, 14))
+        out.pack(fill="x")
+        ttk.Label(out, text="ชื่อไฟล์ / URL", style="Sub.TLabel").pack(anchor="w")
+        line = ttk.Frame(out)
+        line.pack(fill="x", pady=(4, 0))
+        self.nm_out = tk.StringVar(value="")
+        entry = ttk.Entry(line, textvariable=self.nm_out, font=MONO, state="readonly")
+        entry.pack(side="left", fill="x", expand=True, ipady=4)
+        self.nm_btn = ttk.Button(line, text="คัดลอก",
+                                 command=lambda: self.copy(self.nm_out.get(), self.nm_btn))
+        self.nm_btn.pack(side="left", padx=(8, 0))
+        self.nm_bits = ttk.Label(out, text="", style="Sub.TLabel")
+        self.nm_bits.pack(anchor="w", pady=(8, 0))
+
+    def do_name(self):
+        try:
+            n = max(8, min(int(self.nm_len.get()), 64))
+        except Exception:
+            return self.status("ความยาวไม่ถูกต้อง")
+        page = "%s%s.html" % (self.nm_prefix.get().strip(), core.gen_slug(n))
+        self.nm_out.set(page)
+        self.nm_bits.config(text="ประมาณ %d บิต entropy" % (n * math.log2(36)))
+        self.status("สร้างชื่อหน้าลับแล้ว")
+
+    # ---------------------------------------------------- แท็บ 3: admin + QR
+    def tab_admin(self, f):
+        wrap = ttk.Frame(f, padding=(18, 14, 18, 14))
+        wrap.pack(fill="both", expand=True)
+        left = ttk.Frame(wrap)
+        left.pack(side="left", fill="both", expand=True)
+        right = ttk.Frame(wrap)
+        right.pack(side="right", fill="y", padx=(16, 0))
+
+        form = ttk.Frame(left)
+        form.pack(fill="x")
+        ttk.Label(form, text="Issuer").grid(row=0, column=0, sticky="w")
+        self.ad_issuer = tk.StringVar(value="XRay Admin")
+        ttk.Entry(form, textvariable=self.ad_issuer, width=22).grid(
+            row=0, column=1, sticky="w", padx=8, pady=3)
+        ttk.Label(form, text="บัญชี").grid(row=1, column=0, sticky="w")
+        self.ad_account = tk.StringVar(value="admin")
+        ttk.Entry(form, textvariable=self.ad_account, width=22).grid(
+            row=1, column=1, sticky="w", padx=8, pady=3)
+        ttk.Button(form, text="สร้างชุดค่า admin", command=self.do_admin).grid(
+            row=2, column=0, columnspan=2, sticky="w", pady=(10, 0))
+
+        self.ad_values = {}
+        vals = ttk.Frame(left)
+        vals.pack(fill="x", pady=(14, 0))
+        for i, (key, label) in enumerate((
+            ("token", "ADMIN_TOKEN"),
+            ("secret", "ADMIN_TOTP_SECRET"),
+            ("page", "ชื่อหน้า admin"),
+            ("uri", "ลิงก์ otpauth"),
+        )):
+            ttk.Label(vals, text=label, style="Sub.TLabel").grid(row=i * 2, column=0, columnspan=3, sticky="w",
+                                                                 pady=(8 if i else 0, 2))
+            var = tk.StringVar()
+            entry = ttk.Entry(vals, textvariable=var, font=MONO, state="readonly")
+            entry.grid(row=i * 2 + 1, column=0, columnspan=2, sticky="we", ipady=3)
+            btn = ttk.Button(vals, text="คัดลอก", width=9,
+                             command=lambda v=var, b=None: self.copy(v.get()))
+            btn.grid(row=i * 2 + 1, column=2, padx=(6, 0))
+            self.ad_values[key] = var
+        vals.columnconfigure(0, weight=1)
+
+        self.ad_note = ttk.Label(left, text="ค่าถูกสร้างใหม่ทุกครั้งและไม่ถูกบันทึกลงดิสก์",
+                                 style="Sub.TLabel", wraplength=430, justify="left")
+        self.ad_note.pack(anchor="w", pady=(12, 0))
+
+        ttk.Label(right, text="สแกนด้วยแอป Authenticator", style="Sub.TLabel").pack(pady=(0, 6))
+        self.qr = tk.Canvas(right, width=240, height=240, bg="white",
+                            highlightthickness=1, highlightbackground="#ccc")
+        self.qr.pack()
+        ttk.Button(right, text="แสดง QR ใหม่",
+                   command=self.draw_qr_from_state).pack(pady=(8, 0))
+
+    def do_admin(self):
+        issuer = self.ad_issuer.get().strip() or "XRay Admin"
+        account = self.ad_account.get().strip() or "admin"
+        token = core.gen_alnum(40)
+        secret = core.b32enc(secrets.token_bytes(20))
+        page = "a-%s.html" % core.gen_slug(24)
+        uri = core.otpauth_uri(secret, issuer, account)
+        now = core.totp(core.b32dec(secret), int(time.time()) // 30)
+
+        self.ad_values["token"].set(token)
+        self.ad_values["secret"].set(secret)
+        self.ad_values["page"].set(page)
+        self.ad_values["uri"].set(uri)
+        self._last_uri = uri
+        self.draw_qr(uri)
+        self.ad_note.config(
+            text="รหัสตอนนี้ควรตรงกับแอป: %s %s\n"
+                 "ถ้าตรง แปลว่าตั้งค่าถูก — ล้างจอ/ปิดหน้าต่างหลังบันทึกค่าแล้ว" % (now[:3], now[3:]))
+        self.status("สร้างชุดค่า admin แล้ว")
+
+    def draw_qr_from_state(self):
+        uri = getattr(self, "_last_uri", "")
+        if not uri:
+            return self.status("กด “สร้างชุดค่า admin” ก่อน")
+        self.draw_qr(uri)
+
+    def draw_qr(self, data):
+        self.qr.delete("all")
+        try:
+            import qrcode
+        except ImportError:
+            self.qr.create_text(120, 100, text="ไม่มีไลบรารี qrcode",
+                                font=("Segoe UI", 11), fill="#444", width=200)
+            self.qr.create_text(120, 140, text="pip install qrcode\nหรือคัดลอกลิงก์ otpauth ไปสร้าง QR เอง",
+                                font=("Segoe UI", 9), fill="#777", width=210, justify="center")
+            return
+        q = qrcode.QRCode(border=2, box_size=1)
+        q.add_data(data)
+        q.make()
+        matrix = q.get_matrix()
+        n = len(matrix)
+        cell = max(2, 240 // n)
+        size = n * cell
+        self.qr.config(width=size, height=size)
+        for y, row in enumerate(matrix):
+            for x, on in enumerate(row):
+                if on:
+                    self.qr.create_rectangle(x * cell, y * cell, (x + 1) * cell, (y + 1) * cell,
+                                             fill="black", outline="")
+
+    # ------------------------------------------------------- แท็บ 4: TOTP สด
+    def tab_totp(self, f):
+        box = ttk.Frame(f, padding=(18, 16, 18, 10))
+        box.pack(fill="x")
+
+        ttk.Label(box, text="Secret (base32)").grid(row=0, column=0, sticky="w")
+        self.tp_secret = tk.StringVar(value=os.environ.get("XPASS_SECRET", ""))
+        self.tp_entry = ttk.Entry(box, textvariable=self.tp_secret, font=MONO, width=40)
+        self.tp_entry.grid(row=0, column=1, sticky="we", padx=10, pady=4, ipady=3)
+        box.columnconfigure(1, weight=1)
+
+        self.tp_hide = tk.BooleanVar(value=False)
+        ttk.Checkbutton(box, text="ซ่อน", variable=self.tp_hide,
+                        command=self._toggle_secret).grid(row=0, column=2)
+
+        btns = ttk.Frame(box)
+        btns.grid(row=1, column=0, columnspan=3, sticky="w", pady=(10, 0))
+        self.tp_start = ttk.Button(btns, text="เริ่มแสดงรหัส", command=self.toggle_totp)
+        self.tp_start.pack(side="left")
+        self.tp_copy = ttk.Button(btns, text="คัดลอกรหัส",
+                                  command=lambda: self.copy(self._totp_code, self.tp_copy))
+        self.tp_copy.pack(side="left", padx=6)
+
+        center = ttk.Frame(f, padding=(18, 20, 18, 10))
+        center.pack(fill="both", expand=True)
+        self.tp_code = ttk.Label(center, text="••• •••", style="Big.TLabel")
+        self.tp_code.pack(pady=(10, 14))
+        self.tp_bar = ttk.Progressbar(center, maximum=30, length=320)
+        self.tp_bar.pack()
+        self.tp_sub = ttk.Label(center, text="ใส่ secret แล้วกด “เริ่มแสดงรหัส”", style="Sub.TLabel")
+        self.tp_sub.pack(pady=(10, 0))
+
+    def _toggle_secret(self):
+        self.tp_entry.config(show="•" * 1 if self.tp_hide.get() else "")
+
+    def toggle_totp(self):
+        if self._totp_job is not None:
+            self.after_cancel(self._totp_job)
+            self._totp_job = None
+            self._totp_key = None
+            self._totp_code = ""
+            self.tp_code.config(text="••• •••")
+            self.tp_bar["value"] = 0
+            self.tp_sub.config(text="หยุดแล้ว")
+            self.tp_start.config(text="เริ่มแสดงรหัส")
+            self.status("หยุดแสดงรหัส")
+            return
+
+        raw = self.tp_secret.get().strip()
+        if not raw:
+            self.tp_entry.focus_set()
+            return messagebox.showwarning("ต้องมี secret", "ใส่ secret (base32) ก่อนครับ")
+        try:
+            key = core.b32dec(raw)
+            if not key:
+                raise ValueError
+        except Exception:
+            return messagebox.showerror("secret ไม่ถูกต้อง",
+                                        "secret ต้องเป็นตัวอักษร A–Z และเลข 2–7 (base32)")
+        self._totp_key = key
+        self.tp_start.config(text="หยุด")
+        self.status("กำลังแสดงรหัส TOTP")
+        self._tick()
+
+    def _tick(self):
+        now = int(time.time())
+        left = 30 - now % 30
+        code = core.totp(self._totp_key, now // 30)
+        self._totp_code = code
+        self.tp_code.config(text="%s %s" % (code[:3], code[3:]))
+        self.tp_bar["value"] = left
+        self.tp_sub.config(text="เหลืออีก %d วินาที" % left)
+        self._totp_job = self.after(200, self._tick)
+
+
+if __name__ == "__main__":
+    App().mainloop()

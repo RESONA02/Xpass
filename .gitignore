@@ -1,0 +1,25 @@
+# ไบต์โค้ดของ Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# สภาพแวดล้อมเสมือน
+.venv/
+venv/
+env/
+
+# ตัวแปรสภาพแวดล้อม / ความลับ
+.env
+.env.*
+secrets*.txt
+*.secret
+
+# ไฟล์ที่ระบบปฏิบัติการสร้าง
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# เอาต์พุตชั่วคราว
+*.log
+build/
+dist/

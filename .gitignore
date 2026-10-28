@@ -23,3 +23,13 @@ desktop.ini
 *.log
 build/
 dist/
+*.spec
+
+# เครื่องมือ build ที่ดาวน์โหลดมา / ไฟล์ที่ generate
+tools/wix/
+tools/files.wxs
+
+# ตัวติดตั้งที่ build ออกมา (แนบกับ GitHub Release แทนการ commit)
+installer/*.msi
+installer/*.exe
+installer/*.rtf

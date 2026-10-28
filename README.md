@@ -11,6 +11,9 @@
 | `xpass_qt.py` | UI เดสก์ท็อป ธีมมืด ด้วย PySide6 (แนะนำ) |
 | `xpass_gui.py` | UI เดสก์ท็อปด้วย tkinter (ไม่ต้องติดตั้งอะไรเพิ่ม) |
 | `open-xpass.bat` | ดับเบิลคลิกเพื่อเปิดแอป (เลือก Qt ก่อน ถ้าไม่มีจึงใช้ tkinter) |
+| `installer/Product.wxs` | สคริปต์ตัวติดตั้ง MSI (WiX) |
+| `xpass.iss` | สคริปต์ตัวติดตั้ง Inno Setup (ทางเลือก) |
+| `tools/` | สคริปต์สร้างไอคอน / build exe / build MSI |
 
 ## การใช้งาน
 
@@ -35,6 +38,33 @@ python xpass_gui.py   # tkinter อย่างเดียว
 ```
 
 หรือดับเบิลคลิก `open-xpass.bat`
+
+## ติดตั้งเป็นแอป (Windows)
+
+มีตัวติดตั้ง **MSI** ที่ติดตั้งแบบ per-user (ไม่ต้องใช้สิทธิ์ admin)
+
+```
+installer\xpass-1.0.0.msi
+```
+
+- ดับเบิลคลิกแล้วทำตามขั้นตอน → ได้ไอคอนบน Desktop และ Start Menu
+- ติดตั้งไว้ที่ `%LOCALAPPDATA%\Programs\xpass`
+- ถอนได้จาก Settings → Apps → xpass
+- ติดตั้งเงียบ ๆ: `msiexec /i installer\xpass-1.0.0.msi /qn`
+
+แบบพกพา (ไม่ต้องติดตั้ง): `dist\xpass\xpass.exe`
+
+### build เอง
+
+```powershell
+pip install PySide6 pyinstaller
+powershell -ExecutionPolicy Bypass -File tools\build.ps1
+```
+
+ต้องมี **WiX Toolset 3** แตกไว้ที่ `tools\wix` (โหลด `wix314-binaries.zip`) สำหรับสร้าง MSI
+
+> หมายเหตุ: สคริปต์ `xpass.iss` (Inno Setup) ใช้ได้บนเครื่องทั่วไป แต่จะล้มเหลวถ้าระบบมี
+> Application Control policy ที่บล็อกการรัน exe จากโฟลเดอร์ Temp (`Error 4551`) — กรณีนั้นให้ใช้ MSI
 
 ## การติดตั้ง (ไม่บังคับ)
 

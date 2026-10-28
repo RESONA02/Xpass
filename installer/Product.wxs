@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ตัวติดตั้ง MSI ของ xpass (ติดตั้งแบบ per-user ไม่ต้องใช้สิทธิ์ admin)
+     สร้าง: tools\build_msi.ps1 -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*"
+           Name="xpass"
+           Language="1033"
+           Version="1.0.0"
+           Manufacturer="XRayTH"
+           UpgradeCode="DEBFCE58-B744-4384-9894-E4C381302949">
+
+    <Package InstallerVersion="500"
+             Compressed="yes"
+             InstallScope="perUser"
+             InstallPrivileges="limited"
+             Platform="x64"
+             Description="Offline password / 2FA / secret-name generator" />
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of xpass is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="tools\assets\xpass.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPNOREPAIR" Value="1" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/RESONA02/Xpass" />
+    <Property Id="ARPDISPLAYVERSION" Value="1.0.0" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="ProgramsFolder" Name="Programs">
+          <Directory Id="INSTALLFOLDER" Name="xpass" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="AppMenuFolder" Name="xpass" />
+      </Directory>
+      <Directory Id="DesktopFolder" />
+    </Directory>
+
+    <DirectoryRef Id="AppMenuFolder">
+      <Component Id="MenuShortcut" Guid="42D3D2BF-23F7-47A6-BD93-BE685F0BA491">
+        <Shortcut Id="StartMenuShortcut"
+                  Name="xpass"
+                  Description="Offline password / 2FA / secret-name generator"
+                  Target="[INSTALLFOLDER]xpass.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RemoveFolder Id="RemoveAppMenuFolder" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\XRayTH\xpass" Name="menuShortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <DirectoryRef Id="DesktopFolder">
+      <Component Id="DesktopShortcut" Guid="C4555B5C-CCB0-4409-B422-47CF4DE05551">
+        <Shortcut Id="DesktopShortcutLink"
+                  Name="xpass"
+                  Description="Offline password / 2FA / secret-name generator"
+                  Target="[INSTALLFOLDER]xpass.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\XRayTH\xpass" Name="desktopShortcut"
+                       Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </DirectoryRef>
+
+    <Feature Id="MainFeature" Title="xpass" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="MenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLFOLDER" />
+    <WixVariable Id="WixUILicenseRtf" Value="installer\license.rtf" />
+    <UIRef Id="WixUI_InstallDir" />
+  </Product>
+</Wix>

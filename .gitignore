@@ -33,3 +33,4 @@ tools/files.wxs
 installer/*.msi
 installer/*.exe
 installer/*.rtf
+installer/*.wixpdb

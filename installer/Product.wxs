@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- ตัวติดตั้ง MSI ของ xpass (ติดตั้งแบบ per-user ไม่ต้องใช้สิทธิ์ admin)
-     สร้าง: tools\build_msi.ps1 -->
+     สร้าง: tools\build.ps1 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*"
            Name="xpass"
            Language="1033"
-           Version="1.0.0"
+           Version="1.0.1"
            Manufacturer="XRayTH"
            UpgradeCode="DEBFCE58-B744-4384-9894-E4C381302949">
 
@@ -23,7 +23,7 @@
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
     <Property Id="ARPNOREPAIR" Value="1" />
     <Property Id="ARPHELPLINK" Value="https://github.com/RESONA02/Xpass" />
-    <Property Id="ARPDISPLAYVERSION" Value="1.0.0" />
+    <Property Id="ARPDISPLAYVERSION" Value="1.0.1" />
 
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="LocalAppDataFolder">

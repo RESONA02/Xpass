@@ -13,6 +13,7 @@ env/
 .env.*
 secrets*.txt
 *.secret
+demo/api_key.txt
 
 # ไฟล์ที่ระบบปฏิบัติการสร้าง
 .DS_Store

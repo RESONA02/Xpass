@@ -2,7 +2,7 @@
 ; คอมไพล์: ISCC.exe xpass.iss
 
 #define MyAppName "xpass"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "XRayTH"
 #define MyAppURL "https://github.com/RESONA02/Xpass"
 #define MyAppExeName "xpass.exe"
